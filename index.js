@@ -1,11 +1,15 @@
 const port = 1113;
 
+const http = require("http");
+const express = require("express");
+
+const app = express();
+const server = http.createServer(app);
+
 const WebSocket = require("ws");
 const { v4: uuidv4 } = require("uuid");
 
-const wss = new WebSocket.Server({ port }, () => {
-	console.log(`Game server started with Websocket on port ${port}`);
-});
+const wss = new WebSocket.Server({ server });
 
 var mysql = require("mysql");
 var connection = mysql.createConnection({
@@ -15,13 +19,17 @@ var connection = mysql.createConnection({
 	database: "game",
 });
 
+server.listen(port, () => {
+	console.log(`Game server and website started on port ${port}`);
+});
+
+app.get("/", (req, res) => {
+	res.end("Our Unity game server is hosted here!");
+});
+
 connection.connect();
 
 var indexedItems;
-
-/* connection.query("SELECT * FROM items_index", (error, results, fields) => {
-	if (error) throw error;
-}); */
 
 function getIndexedItem(id) {
 	for (var item of indexedItems) {
@@ -32,10 +40,23 @@ function getIndexedItem(id) {
 }
 
 function setItemEquip(id, equipped) {
+	console.count("Equip update");
 	connection.query("UPDATE items SET equipped = ? WHERE id = ?", [
 		equipped,
 		id,
 	]);
+}
+
+function giveUserGold(user, amount, callback = () => {}) {
+	getUser(user.token, (latestUser) => {
+		connection.query(
+			"UPDATE users SET gold = ? WHERE id = ?",
+			[latestUser.gold + amount, user.id],
+			() => {
+				callback();
+			}
+		);
+	});
 }
 
 wss.on("connection", (ws) => {
@@ -52,6 +73,67 @@ wss.on("connection", (ws) => {
 			var identifier = message.identifier;
 			var token = message.token;
 
+			if (identifier == "buy") {
+				getUser(token, (user) => {
+					getItem(data, (item) => {
+						getUserFromId(item.owner, (owner) => {
+							console.log(
+								"Get owner: " + item.owner + " : ",
+								owner
+							);
+							if (
+								item.for_sale === 1 &&
+								item.price <= user.gold &&
+								item.owner != user.id
+							) {
+								// Register the transaction
+								connection.query(
+									"INSERT INTO market_transactions (seller, buyer, item, price, date) VALUES (?, ?, ?, ?, ?)",
+									[
+										owner.id,
+										user.id,
+										item.id,
+										item.price,
+										new Date(),
+									],
+									() => {
+										// Assign the new owner and remove from market
+										connection.query(
+											"UPDATE items SET owner = ?, for_sale = 0, price = 0 WHERE id = ?",
+											[user.id, item.id],
+											() => {
+												// Remove the gold price from the buyer
+												giveUserGold(
+													user,
+													-item.price,
+													() => {
+														// Give the price amount to the previous item owner
+														giveUserGold(
+															owner,
+															item.price,
+															() => {
+																// Update the user that everything is done.
+																sendUserUpdate(
+																	user,
+																	ws
+																);
+																sendUserMarketFront(
+																	ws
+																);
+															}
+														);
+													}
+												);
+											}
+										);
+									}
+								);
+							}
+						});
+					});
+				});
+			}
+
 			if (identifier == "get_listings") {
 				var listings = [];
 				connection.query(
@@ -63,8 +145,7 @@ wss.on("connection", (ws) => {
 							[data],
 							(err, lastSoldFor) => {
 								connection.query(
-									/* "SELECT * FROM items WHERE item = ? AND for_sale = 1 ORDER BY price ASC INNER JOIN users ON items.owner = users.id" */
-									"SELECT items.*, users.username FROM items INNER JOIN users ON items.owner=users.id WHERE items.item = ? ORDER BY price ASC",
+									"SELECT items.*, users.username FROM items INNER JOIN users ON items.owner=users.id WHERE items.item = ? AND items.for_sale = 1 ORDER BY price ASC",
 									[data],
 									(err, res) => {
 										for (var listing of res) {
@@ -152,6 +233,33 @@ wss.on("connection", (ws) => {
 				);
 			}
 
+			if (identifier == "create_listing") {
+				data = JSON.parse(data);
+				getUser(token, (user) => {
+					getItem(data.item, (item) => {
+						if (item.owner == user.id) {
+							setItemSaleStatus(item.id, true, data.price, () => {
+								sendUserUpdate(user, ws);
+							});
+						}
+					});
+				});
+			}
+
+			if (identifier == "remove_listing") {
+				getUser(token, (user) => {
+					getItem(Number(data), (item) => {
+						if (item.owner == user.id) {
+							setItemSaleStatus(item.id, false, 0, () => {
+								console.log("Removed and updated user");
+								sendUserUpdate(user, ws);
+								sendUserMarketFront(ws);
+							});
+						}
+					});
+				});
+			}
+
 			if (identifier == "set_username") {
 				getUser(token, (user) => {
 					if (user.username == null) {
@@ -217,7 +325,7 @@ wss.on("connection", (ws) => {
 
 function sendUserMarketFront(ws) {
 	connection.query(
-		"SELECT items.* FROM items JOIN items_index ON items.item = items_index.id WHERE for_sale = 1 ORDER BY items_index.rarity DESC",
+		"SELECT items.* FROM items JOIN items_index ON items.item = items_index.id WHERE for_sale = 1 ORDER BY items_index.rarity DESC, items_index.name",
 		(err, res) => {
 			var market = res;
 
@@ -248,16 +356,25 @@ function sendUserMarketFront(ws) {
 	);
 }
 
+function setItemSaleStatus(item_id, for_sale, price = 0, callback = () => {}) {
+	connection.query(
+		"UPDATE items SET for_sale = ?, price = ?, equipped = 0 WHERE id = ?",
+		[Number(for_sale), price, item_id],
+		(err, res) => {
+			callback();
+		}
+	);
+}
+
 function sendUserUpdate(user, ws) {
-	delete user.token;
+	getUser(user.token, (latest_user) => {
+		delete user.token;
 
-	ws.send(Package("logged_in", JSON.stringify(user)));
+		ws.send(Package("logged_in", JSON.stringify(latest_user)));
 
-	getInventory(user.id, (inventory) => {
-		inventory = inventory.sort((a, b) => {
-			return a.id - b.id;
+		getInventory(latest_user.id, (inventory) => {
+			ws.send(Package("inventory", JSON.stringify(inventory)));
 		});
-		ws.send(Package("inventory", JSON.stringify(inventory)));
 	});
 }
 
@@ -265,6 +382,12 @@ function Package(identifier, data) {
 	return JSON.stringify({
 		identifier,
 		data,
+	});
+}
+
+function getUserFromId(id, callback) {
+	connection.query("SELECT * FROM users WHERE id = ?", [id], (err, res) => {
+		callback(res[0]);
 	});
 }
 
@@ -286,7 +409,8 @@ function getItem(id, callback) {
 
 function getInventory(id, callback) {
 	connection.query(
-		"SELECT * FROM items WHERE owner = ? AND for_sale = 0",
+		//SELECT items.* FROM items JOIN items_index ON items.item = items_index.id WHERE for_sale = 1 ORDER BY items_index.rarity DESC
+		"SELECT items.* FROM items JOIN items_index ON items.item = items_index.id WHERE owner = ? AND for_sale = 0 ORDER BY items_index.rarity DESC, items_index.name",
 		[id],
 		(err, res) => {
 			callback(res);
