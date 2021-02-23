@@ -14,8 +14,8 @@ const wss = new WebSocket.Server({ server });
 var mysql = require("mysql");
 var connection = mysql.createConnection({
 	host: "localhost",
-	user: "olle",
-	password: "nicke",
+	user: "local",
+	password: "pass",
 	database: "game",
 });
 
