@@ -12,6 +12,7 @@ const { v4: uuidv4 } = require("uuid");
 const wss = new WebSocket.Server({ server });
 
 var mysql = require("mysql");
+const { spawn } = require("child_process");
 var connection = mysql.createConnection({
 	host: "localhost",
 	user: "local",
@@ -28,6 +29,10 @@ app.get("/", (req, res) => {
 });
 
 connection.connect();
+connection.query("SELECT * FROM items_index", (err, res) => {
+    indexedItems = res;
+});
+
 
 var indexedItems;
 
@@ -59,12 +64,21 @@ function giveUserGold(user, amount, callback = () => {}) {
 	});
 }
 
-wss.on("connection", (ws) => {
-	connection.query("SELECT * FROM items_index", (err, res) => {
-		indexedItems = res;
-		ws.send(Package("items_index", JSON.stringify(res)));
-	});
 
+function query(text, variables){
+    return new Promise((resolve, reject) => {
+        connection.query(text, variables, (err, results) => {
+            if(err) reject(err);
+            else resolve(results);
+        })
+    })
+}
+
+
+wss.on("connection", (ws) => {
+
+    ws.send(Package("items_index", JSON.stringify(indexedItems)));
+	
 	ws.on("message", (message) => {
 		try {
 			message = JSON.parse(message);
@@ -77,10 +91,6 @@ wss.on("connection", (ws) => {
 				getUser(token, (user) => {
 					getItem(data, (item) => {
 						getUserFromId(item.owner, (owner) => {
-							console.log(
-								"Get owner: " + item.owner + " : ",
-								owner
-							);
 							if (
 								item.for_sale === 1 &&
 								item.price <= user.gold &&
@@ -97,6 +107,7 @@ wss.on("connection", (ws) => {
 										new Date(),
 									],
 									() => {
+                                        console.log(user.username + " bought an item from " + seller.username + " for " + item.price + " gold")
 										// Assign the new owner and remove from market
 										connection.query(
 											"UPDATE items SET owner = ?, for_sale = 0, price = 0 WHERE id = ?",
@@ -251,7 +262,6 @@ wss.on("connection", (ws) => {
 					getItem(Number(data), (item) => {
 						if (item.owner == user.id) {
 							setItemSaleStatus(item.id, false, 0, () => {
-								console.log("Removed and updated user");
 								sendUserUpdate(user, ws);
 								sendUserMarketFront(ws);
 							});
@@ -259,6 +269,90 @@ wss.on("connection", (ws) => {
 					});
 				});
 			}
+
+            if(identifier == "start_raid"){
+                getUser(token, (user) => {
+                    data = Number(data)
+                    if(isNaN(data)) return;
+                    if(data > user.lvl) return;
+
+                    connection.query("INSERT INTO raids (user, lvl, started, earned_loot, completed) VALUES (?, ?, ?, ?, 0)", [user.id, data, new Date(), JSON.stringify([]), 0], (err, res) => {
+                        ws.send(Package("start_raid"))
+                    })
+                })
+            }
+
+            if(identifier == "raid_ended"){
+                getUser(token, user => {
+                    getRaid(user.id, raid => {
+                        var completed = JSON.parse(data);
+
+                        var earned_loot = []
+                        var earned_gold = 0
+
+                        if(completed){
+                            console.log(user.username + " completed a raid on lvl " + raid.lvl)                            
+                            for(let originItemId of JSON.parse(raid.earned_loot)){
+                                var spawnedItem = {
+                                    item: originItemId,
+                                    pattern: Math.random(),
+                                    owner: user.id,
+                                    for_sale: 0,
+                                    price: 0,
+                                    equipped: 0
+                                }
+                                earned_loot.push(spawnedItem)
+                                connection.query(`INSERT INTO items (item, pattern, owner, creator, created) VALUES (?, ?, ?, ?, ?)`, [
+                                    spawnedItem.item, spawnedItem.pattern, spawnedItem.owner, user.id, new Date()
+                                ], (err, res) => {
+                      
+                                })
+                            }
+                            
+                            // Give the player 1-10 Gold for every item they found in the raid
+                            for(var i = 0; i < earned_loot.length; i++){
+                                earned_gold += Math.floor(Math.random() * 10) +1;
+                            }
+
+                            // A 10% chance to drop 10-100 extra gold
+                            if(Math.random() > .9){
+                                earned_gold += Math.floor(Math.random() * 90) + 10
+                            }
+
+                            giveUserGold(user, earned_gold)
+                            
+                            connection.query("UPDATE users SET lvl = ? WHERE id = ?", [(user.lvl == raid.lvl ? user.lvl + 1 : user.lvl), user.id], (err, res) => {
+                                sendUserUpdate(user, ws);
+                            })
+                            
+                           
+
+                        } else {
+                            console.log(user.username + " failed a raid on lvl " + raid.lvl)
+                        }
+                        ws.send(Package("post_raid_info", JSON.stringify({
+                            completed,
+                            lvl: raid.lvl,
+                            earnedGold: earned_gold,
+                            earnedLoot: earned_loot 
+                        })))     
+                    })
+                })
+            }
+
+            if(identifier == "killed_enemy"){
+                getUser(token, user => {
+                    getRaid(user.id, raid => {
+                        generateLoot(raid.lvl, item => {
+                            var earned_loot = JSON.parse(raid.earned_loot)
+                            earned_loot.push(item)
+                            connection.query("UPDATE raids SET earned_loot = ? WHERE id = ?", [JSON.stringify(earned_loot), raid.id], (err, res) => {
+                                ws.send(Package("loot_rarity", getIndexedItem(item).rarity));
+                            })
+                        })
+                    })
+                })
+            }   
 
 			if (identifier == "set_username") {
 				getUser(token, (user) => {
@@ -268,6 +362,7 @@ wss.on("connection", (ws) => {
 							[data],
 							(err, res) => {
 								if (res.length == 0) {
+                                    console.log("New user: " + data)
 									connection.query(
 										"UPDATE users SET username = ? WHERE id = ?",
 										[data, user.id],
@@ -283,6 +378,29 @@ wss.on("connection", (ws) => {
 				});
 			}
 
+            if(identifier == "history"){
+                getItem(data, async item => {
+                        var transactions = await query("SELECT * FROM market_transactions WHERE item = ? ORDER BY date DESC", item.id)
+                        
+                        for(let transaction of transactions){
+                            var seller = await query("SELECT * FROM users WHERE id = ?", transaction.seller)
+                            var buyer = await query("SELECT * FROM users WHERE id = ?", transaction.buyer)
+                   
+                            transaction.seller = seller[0].username;
+                            transaction.buyer = buyer[0].username;
+                        }
+
+                        var creator = await query("SELECT * FROM users WHERE id = ?" , item.creator)
+                        
+                        creator = creator[0].username
+
+                        ws.send(Package("history", JSON.stringify({
+                            transactions, creator, created: item.created
+                        })))                   
+                })
+
+            }
+
 			if (identifier == "login") {
 				connection.query(
 					"SELECT * FROM users WHERE token = ?",
@@ -292,11 +410,7 @@ wss.on("connection", (ws) => {
 
 						if (!user) {
 							let new_token = uuidv4();
-							console.log(
-								"New user connected, generating a login for them: " +
-									new_token
-							);
-
+							
 							connection.query(
 								"INSERT INTO users (token) VALUES (?)",
 								[new_token],
@@ -308,10 +422,7 @@ wss.on("connection", (ws) => {
 							if (user.username == null) {
 								ws.send(Package("choose_username", ""));
 							} else {
-								sendUserUpdate(user, ws);
-								console.log(
-									"User " + user.username + " logged in"
-								);
+								sendUserUpdate(user, ws);   
 							}
 						}
 					}
@@ -385,10 +496,52 @@ function Package(identifier, data) {
 	});
 }
 
+
+function generateLoot(raid_level, callback){
+    const rarity_table =  [
+        59.8, // Common
+        25, // Rare
+        10, // Epic
+        5, // Legendary
+        .2 // Mythical
+    ]
+
+    var raritySeed = Math.random() * 100;
+    var rarity;
+    
+    var total = 0;
+    for(let i = 0; i < rarity_table.length; i++){
+        total+= rarity_table[i]
+        if(raritySeed < total){
+            rarity = i;
+            break;
+        }
+    }
+
+    connection.query("SELECT * FROM items_index WHERE rarity = ?", [rarity], (err, res) => {
+        var pool = []
+        for(var indexItem of res){
+            for(let i = 0; i < indexItem.loot; i++){
+                pool.push(indexItem.id);
+            }
+        }
+        
+        var item = getIndexedItem(pool[Math.floor(Math.random() * pool.length)])
+        
+        callback(item.id);
+    })
+}
+
 function getUserFromId(id, callback) {
 	connection.query("SELECT * FROM users WHERE id = ?", [id], (err, res) => {
 		callback(res[0]);
 	});
+}
+
+function getRaid(user_id, callback){
+    connection.query("SELECT * FROM raids WHERE user = ? ORDER BY started DESC", [user_id], (err, res) => {
+        callback(res[0]);
+    })
 }
 
 function getUser(token, callback) {
