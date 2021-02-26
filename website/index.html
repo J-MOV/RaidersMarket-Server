@@ -11,14 +11,15 @@
 			href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap"
 			rel="stylesheet"
 		/>
+        <link rel="shortcut icon" href="img/game-icon.png" type="image/x-icon">
 	</head>
 	<body>
+        <img src="img/game-title.png" id="game-banner" alt="" />
 		<div id="wrapper">
-			<img src="img/game-title.png" id="game-banner" alt="" />
 
 			<div class="title">STATS</div>
 			<div id="stats">
-				<div class="stats">PLAYER: 234</div>
+				
 			</div>
 
 			<div class="title">DOWNLOAD</div>
@@ -29,14 +30,17 @@
 				>
 
 				<div id="download-buttons">
-					<div class="download-button">
-						<img
-							src="img/android.png"
-							class="download-platform-icon"
-							alt=""
-						/>
-						<div class="download-button-text">Android</div>
-					</div>
+					<a href="builds/RaidersMarket.apk" download>
+                        <div class="download-button">
+                            <img
+                                src="img/android.png"
+                                class="download-platform-icon"
+                                alt=""
+                            />
+                            <div class="download-button-text">Android</div>
+                        </div>
+                    </a>
+                    <a href="builds/RaidersMarket_Win.zip" download>
 					<div class="download-button" style="float: right">
 						<img
 							src="img/windows.png"
@@ -45,10 +49,17 @@
 						/>
 						<div class="download-button-text">Windows</div>
 					</div>
+                </a>
+
+                <div id="sources"><b style="margin-bottom: -10px;position: relative;display:block;font-size:25px">SOURCES</b><br>
+                
+                    <a href="https://github.com/J-MOV/RaidersMarket" target="_blank">https://github.com/J-MOV/RaidersMarket</a><br>
+                    <a href="https://github.com/J-MOV/RaidersMarket-Server" target="_blank">https://github.com/J-MOV/RaidersMarket-Server</a>
+                </div>
 				</div>
 			</div>
 
-			<div class="title">ABOUT THE GAME</div>
+			<div class="title">ABOUT</div>
 			<img
 				class="featured-image"
 				src="img/screenshots/raid-gameplay.png"
@@ -61,7 +72,7 @@
 				and complete the raid!
 			</div>
 
-			<div class="title">COLLECT LOOT</div>
+			<div class="title">LOOT</div>
 			<img
 				class="featured-image"
 				src="img/screenshots/end-of-raid.png"
@@ -119,7 +130,9 @@
 				what items they have equipped right now.
 			</div>
 		</div>
-		<img src="img/poster.png" id="poster" alt="" />
+		<a href="/img/poster.png" target="_blank">
+            <img src="img/poster.png" id="poster" alt="" />
+        </a>
 		<script src="js/stats.js"></script>
 	</body>
 </html>

@@ -27,16 +27,39 @@ app.listen(website_port, () => {
 });
 
 app.get("/stats", async (req, res) => {
+    var users = await query("SELECT * FROM users")
+
+    var raids = await query("SELECT * FROM raids WHERE ended IS NOT NULL")
+
+    var highest_raid = await query("SELECT * FROM users ORDER BY lvl DESC LIMIT 1")
+
+    var total_items = await query("SELECT * FROM items")
+
+    var gold = 0;
+    for(var user of users){
+        gold+= user.gold;
+    }
 	var mythical_items = await query(
-		"SELECT items.*, items_index.rarity FROM items INNER JOIN items_index ON items.item = items_index.id WHERE items_index.rarity = 4"
+		"SELECT items.* FROM items INNER JOIN items_index ON items.item = items_index.id WHERE items_index.rarity = 4"
 	);
 
-	res.json({ mythical_items });
+	res.json({
+        "Players": users.length ,
+        "Raids cleared": raids.length,
+        "Looted items": total_items.length, 
+        "Highest raid cleared": highest_raid[0].lvl-1,
+        
+        "Looted mythicals": mythical_items.length,
+        "Player gold": gold
+      });
 });
 
 app.get("/", (req, res) => {
-	res.end("Our Unity game server is hosted here!");
+	res.sendFile(__dirname + "/website/index.html")
 });
+
+app.use(express.static('website'))
+
 
 connection.connect();
 connection.query("SELECT * FROM items_index", (err, res) => {
