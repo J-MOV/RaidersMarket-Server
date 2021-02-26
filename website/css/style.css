@@ -1,0 +1,85 @@
+* {
+	font-family: "Open Sans", sans-serif;
+	padding: 0;
+	margin: 0;
+}
+
+body {
+	background: black;
+	color: white;
+}
+
+#wrapper {
+	max-width: 600px;
+	width: calc(100% - 30px);
+	margin: 0 auto;
+	display: block;
+	position: relative;
+}
+
+#game-banner {
+	width: 100%;
+	position: relative;
+	margin-top: 30px;
+	margin-bottom: 40px;
+	z-index: -1;
+}
+
+img {
+	-webkit-user-drag: none;
+}
+
+.title {
+	font-size: 30px;
+	display: block;
+	margin-bottom: 10px;
+	font-weight: 500;
+}
+
+.body {
+	display: block;
+}
+
+#download-buttons {
+	display: block;
+	margin-top: 20px;
+}
+
+.download-button {
+	display: inline-block;
+	width: calc(50% - 10px);
+	height: 70px;
+	background: rgb(15, 15, 15);
+	border-radius: 5px;
+	cursor: pointer;
+	position: relative;
+	user-select: none;
+}
+
+@media only screen and (max-width: 492px) {
+	.download-button {
+		display: block;
+		width: calc(100%);
+		margin-bottom: 10px;
+	}
+}
+
+.download-platform-icon {
+	position: absolute;
+	height: 60px;
+	left: 5px;
+	top: 5px;
+}
+
+.download-button-text {
+	display: block;
+	position: absolute;
+	height: 100%;
+	line-height: 100%;
+	right: 0px;
+	width: calc(100% - 70px);
+	top: 19px;
+
+	font-size: 28px;
+	text-align: center;
+}

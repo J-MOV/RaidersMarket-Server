@@ -6,26 +6,6 @@ The item contains infromation about all kinds of items [Indexed Items](#items-in
 
 The server also saves all market transactions so a market history can be displayed for the players and also analyzed by us.
 
-# Setup the server
-
-The server is needed to properly work on and test the game.
-It will host a Websocket server on a given port (default 1113)
-
-(If you want to change to port you have to edit Game/OnlineConnection.cs and Server/Index.js)
-
-### Prerequisites:
-
--   MySQL Server
--   NodeJS & NPM
-
-### Steps
-
-1. Download this repo `git clone https://github.com/J-MOV/Server`
-2. Install node modules `npm i`
-3. Create a new sql database named `game`
-4. Import the sql dump `mysql -u username -p game < database.sql`
-5. Start the server `node index.js`
-
 # Explanation of the database structure
 
 ## Items index

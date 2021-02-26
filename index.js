@@ -1,18 +1,20 @@
-const port = 1113;
+const server_port = 1113;
+const website_port = 1114;
 
 const http = require("http");
 const express = require("express");
 
 const app = express();
-const server = http.createServer(app);
 
 const WebSocket = require("ws");
 const { v4: uuidv4 } = require("uuid");
 
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ port: server_port });
 
 var mysql = require("mysql");
-const { spawn } = require("child_process");
+
+/* const { spawn } = require("child_process"); */
+
 var connection = mysql.createConnection({
 	host: "localhost",
 	user: "local",
@@ -20,8 +22,8 @@ var connection = mysql.createConnection({
 	database: "game",
 });
 
-server.listen(port, () => {
-	console.log(`Game server and website started on port ${port}`);
+app.listen(website_port, () => {
+	console.log(`Website started on port ${website_port}`);
 });
 
 app.get("/", (req, res) => {
@@ -30,9 +32,9 @@ app.get("/", (req, res) => {
 
 connection.connect();
 connection.query("SELECT * FROM items_index", (err, res) => {
-    indexedItems = res;
+	indexedItems = res;
 
-    /* for(var item of indexedItems){
+	/* for(var item of indexedItems){
         var spawnedItem = {
             item: item.id,
             pattern: Math.random(),
@@ -52,9 +54,6 @@ connection.query("SELECT * FROM items_index", (err, res) => {
        }
     } */
 });
-
-
-
 
 var indexedItems;
 
@@ -85,21 +84,18 @@ function giveUserGold(user, amount, callback = () => {}) {
 	});
 }
 
-
-function query(text, variables){
-    return new Promise((resolve, reject) => {
-        connection.query(text, variables, (err, results) => {
-            if(err) reject(err);
-            else resolve(results);
-        })
-    })
+function query(text, variables) {
+	return new Promise((resolve, reject) => {
+		connection.query(text, variables, (err, results) => {
+			if (err) reject(err);
+			else resolve(results);
+		});
+	});
 }
 
-
 wss.on("connection", (ws) => {
+	ws.send(Package("items_index", JSON.stringify(indexedItems)));
 
-    ws.send(Package("items_index", JSON.stringify(indexedItems)));
-	
 	ws.on("message", (message) => {
 		try {
 			message = JSON.parse(message);
@@ -128,7 +124,14 @@ wss.on("connection", (ws) => {
 										new Date(),
 									],
 									() => {
-                                        console.log(user.username + " bought an item from " + owner.username + " for " + item.price + " gold")
+										console.log(
+											user.username +
+												" bought an item from " +
+												owner.username +
+												" for " +
+												item.price +
+												" gold"
+										);
 										// Assign the new owner and remove from market
 										connection.query(
 											"UPDATE items SET owner = ?, for_sale = 0, price = 0 WHERE id = ?",
@@ -166,29 +169,34 @@ wss.on("connection", (ws) => {
 				});
 			}
 
-            if(identifier == "get_player_model"){
-                connection.query("SELECT * FROM items WHERE owner = ? AND equipped = 1", Number(data), (err, res) => {
-                    ws.send(Package("player_model", JSON.stringify(res)))
-                })
-            }
-            if(identifier == "leaderboard"){
-                connection.query("SELECT * FROM users ORDER BY gold DESC", (err, res) => {
-                    var users = []
-                    for(let user of res){
-                        if(user.username){
-                            users.push({
-                                username: user.username,
-                                gold: user.gold,
-                                id: user.id,
-                                lvl: user.lvl
-                            })
-                        }
-                       
-
-                    }
-                    ws.send(Package("leaderboard", JSON.stringify(users)))
-                })
-            }
+			if (identifier == "get_player_model") {
+				connection.query(
+					"SELECT * FROM items WHERE owner = ? AND equipped = 1",
+					Number(data),
+					(err, res) => {
+						ws.send(Package("player_model", JSON.stringify(res)));
+					}
+				);
+			}
+			if (identifier == "leaderboard") {
+				connection.query(
+					"SELECT * FROM users ORDER BY gold DESC",
+					(err, res) => {
+						var users = [];
+						for (let user of res) {
+							if (user.username) {
+								users.push({
+									username: user.username,
+									gold: user.gold,
+									id: user.id,
+									lvl: user.lvl,
+								});
+							}
+						}
+						ws.send(Package("leaderboard", JSON.stringify(users)));
+					}
+				);
+			}
 
 			if (identifier == "get_listings") {
 				var listings = [];
@@ -315,94 +323,142 @@ wss.on("connection", (ws) => {
 				});
 			}
 
-            if(identifier == "start_raid"){
-                getUser(token, (user) => {
-                    data = Number(data)
-                    if(isNaN(data)) return;
-                    if(data > user.lvl) return;
+			if (identifier == "start_raid") {
+				getUser(token, (user) => {
+					data = Number(data);
+					if (isNaN(data)) return;
+					if (data > user.lvl) return;
 
-                    connection.query("INSERT INTO raids (user, lvl, started, earned_loot, completed) VALUES (?, ?, ?, ?, 0)", [user.id, data, new Date(), JSON.stringify([]), 0], (err, res) => {
-                        ws.send(Package("start_raid"))
-                    })
-                })
-            }
+					connection.query(
+						"INSERT INTO raids (user, lvl, started, earned_loot, completed) VALUES (?, ?, ?, ?, 0)",
+						[user.id, data, new Date(), JSON.stringify([]), 0],
+						(err, res) => {
+							ws.send(Package("start_raid"));
+						}
+					);
+				});
+			}
 
-            if(identifier == "raid_ended"){
-                getUser(token, user => {
-                    getRaid(user.id, raid => {
-                        var completed = JSON.parse(data);
+			if (identifier == "raid_ended") {
+				getUser(token, (user) => {
+					getRaid(user.id, (raid) => {
+						var completed = JSON.parse(data);
 
-                        var earned_loot = []
-                        var earned_gold = 0
+						var earned_loot = [];
+						var earned_gold = 0;
 
-                       
+						if (completed) {
+							console.log(
+								user.username +
+									" completed a raid on lvl " +
+									raid.lvl
+							);
+							for (let originItemId of JSON.parse(
+								raid.earned_loot
+							)) {
+								var spawnedItem = {
+									item: originItemId,
+									pattern: Math.random(),
+									owner: user.id,
+									for_sale: 0,
+									price: 0,
+									equipped: 0,
+								};
+								earned_loot.push(spawnedItem);
+								connection.query(
+									`INSERT INTO items (item, pattern, owner, creator, created) VALUES (?, ?, ?, ?, ?)`,
+									[
+										spawnedItem.item,
+										spawnedItem.pattern,
+										spawnedItem.owner,
+										user.id,
+										new Date(),
+									],
+									(err, res) => {}
+								);
+							}
 
-                        if(completed){
-                            console.log(user.username + " completed a raid on lvl " + raid.lvl)                            
-                            for(let originItemId of JSON.parse(raid.earned_loot)){
-                                var spawnedItem = {
-                                    item: originItemId,
-                                    pattern: Math.random(),
-                                    owner: user.id,
-                                    for_sale: 0,
-                                    price: 0,
-                                    equipped: 0
-                                }
-                                earned_loot.push(spawnedItem)
-                                connection.query(`INSERT INTO items (item, pattern, owner, creator, created) VALUES (?, ?, ?, ?, ?)`, [
-                                    spawnedItem.item, spawnedItem.pattern, spawnedItem.owner, user.id, new Date()
-                                ], (err, res) => {
-                      
-                                })
-                            }
-                            
-                            // Give the player 1-10 Gold for every item they found in the raid
-                            for(var i = 0; i < earned_loot.length; i++){
-                                earned_gold += Math.floor(Math.random() * 10) +1;
-                            }
+							// Give the player 1-10 Gold for every item they found in the raid
+							for (var i = 0; i < earned_loot.length; i++) {
+								earned_gold +=
+									Math.floor(Math.random() * 10) + 1;
+							}
 
-                            // A 10% chance to drop 10-100 extra gold
-                            if(Math.random() > .9){
-                                earned_gold += Math.floor(Math.random() * 90) + 10
-                            }
+							// A 10% chance to drop 10-100 extra gold
+							if (Math.random() > 0.9) {
+								earned_gold +=
+									Math.floor(Math.random() * 90) + 10;
+							}
 
-                            giveUserGold(user, earned_gold)
-                            
-                            connection.query("UPDATE users SET lvl = ? WHERE id = ?", [(user.lvl == raid.lvl ? user.lvl + 1 : user.lvl), user.id], (err, res) => {
-                                sendUserUpdate(user, ws);
-                            })
-                            
-                           
+							giveUserGold(user, earned_gold);
 
-                        } else {
-                            console.log(user.username + " failed a raid on lvl " + raid.lvl)
-                        }
+							connection.query(
+								"UPDATE users SET lvl = ? WHERE id = ?",
+								[
+									user.lvl == raid.lvl
+										? user.lvl + 1
+										: user.lvl,
+									user.id,
+								],
+								(err, res) => {
+									sendUserUpdate(user, ws);
+								}
+							);
+						} else {
+							console.log(
+								user.username +
+									" failed a raid on lvl " +
+									raid.lvl
+							);
+						}
 
-                        connection.query("UPDATE raids SET completed = ?, ended = ?, earned_gold = ? WHERE id = ?", [(completed ? 1 : 0), new Date(), earned_gold, raid.id])
+						connection.query(
+							"UPDATE raids SET completed = ?, ended = ?, earned_gold = ? WHERE id = ?",
+							[
+								completed ? 1 : 0,
+								new Date(),
+								earned_gold,
+								raid.id,
+							]
+						);
 
-                        ws.send(Package("post_raid_info", JSON.stringify({
-                            completed,
-                            lvl: raid.lvl,
-                            earnedGold: earned_gold,
-                            earnedLoot: earned_loot 
-                        })))     
-                    })
-                })
-            }
+						ws.send(
+							Package(
+								"post_raid_info",
+								JSON.stringify({
+									completed,
+									lvl: raid.lvl,
+									earnedGold: earned_gold,
+									earnedLoot: earned_loot,
+								})
+							)
+						);
+					});
+				});
+			}
 
-            if(identifier == "killed_enemy"){
-                getUser(token, user => {
-                    getRaid(user.id, raid => {
-                        generateLoot(raid.lvl, item => {
-                            var earned_loot = JSON.parse(raid.earned_loot)
-                            earned_loot.push(item)
-                            connection.query("UPDATE raids SET earned_loot = ? WHERE id = ?", [JSON.stringify(earned_loot), raid.id], (err, res) => {
-                                ws.send(Package("loot_rarity", getIndexedItem(item).rarity));
-                            })
-                        })
-                    })
-                })
-            }   
+			if (identifier == "killed_enemy") {
+				getUser(token, (user) => {
+					getRaid(user.id, (raid) => {
+						generateLoot(raid.lvl, (item) => {
+							var earned_loot = JSON.parse(raid.earned_loot);
+							earned_loot.push(item);
+							connection.query(
+								"UPDATE raids SET earned_loot = ? WHERE id = ?",
+								[JSON.stringify(earned_loot), raid.id],
+								(err, res) => {
+									ws.send(
+										Package(
+											"loot_rarity",
+											getIndexedItem(item).rarity
+										)
+									);
+								}
+							);
+						});
+					});
+				});
+			}
 
 			if (identifier == "set_username") {
 				getUser(token, (user) => {
@@ -412,7 +468,7 @@ wss.on("connection", (ws) => {
 							[data],
 							(err, res) => {
 								if (res.length == 0) {
-                                    console.log("New user: " + data)
+									console.log("New user: " + data);
 									connection.query(
 										"UPDATE users SET username = ? WHERE id = ?",
 										[data, user.id],
@@ -428,28 +484,46 @@ wss.on("connection", (ws) => {
 				});
 			}
 
-            if(identifier == "history"){
-                getItem(data, async item => {
-                        var transactions = await query("SELECT * FROM market_transactions WHERE item = ? ORDER BY date DESC", item.id)
-                        
-                        for(let transaction of transactions){
-                            var seller = await query("SELECT * FROM users WHERE id = ?", transaction.seller)
-                            var buyer = await query("SELECT * FROM users WHERE id = ?", transaction.buyer)
-                   
-                            transaction.seller = seller[0].username;
-                            transaction.buyer = buyer[0].username;
-                        }
+			if (identifier == "history") {
+				getItem(data, async (item) => {
+					var transactions = await query(
+						"SELECT * FROM market_transactions WHERE item = ? ORDER BY date DESC",
+						item.id
+					);
 
-                        var creator = await query("SELECT * FROM users WHERE id = ?" , item.creator)
-                        
-                        creator = creator[0].username
+					for (let transaction of transactions) {
+						var seller = await query(
+							"SELECT * FROM users WHERE id = ?",
+							transaction.seller
+						);
+						var buyer = await query(
+							"SELECT * FROM users WHERE id = ?",
+							transaction.buyer
+						);
 
-                        ws.send(Package("history", JSON.stringify({
-                            transactions, creator, created: item.created
-                        })))                   
-                })
+						transaction.seller = seller[0].username;
+						transaction.buyer = buyer[0].username;
+					}
 
-            }
+					var creator = await query(
+						"SELECT * FROM users WHERE id = ?",
+						item.creator
+					);
+
+					creator = creator[0].username;
+
+					ws.send(
+						Package(
+							"history",
+							JSON.stringify({
+								transactions,
+								creator,
+								created: item.created,
+							})
+						)
+					);
+				});
+			}
 
 			if (identifier == "login") {
 				connection.query(
@@ -460,7 +534,7 @@ wss.on("connection", (ws) => {
 
 						if (!user) {
 							let new_token = uuidv4();
-							
+
 							connection.query(
 								"INSERT INTO users (token) VALUES (?)",
 								[new_token],
@@ -472,7 +546,7 @@ wss.on("connection", (ws) => {
 							if (user.username == null) {
 								ws.send(Package("choose_username", ""));
 							} else {
-								sendUserUpdate(user, ws);   
+								sendUserUpdate(user, ws);
 							}
 						}
 					}
@@ -546,46 +620,49 @@ function Package(identifier, data) {
 	});
 }
 
+function generateLoot(raid_level, callback) {
+	const rarity_table = [
+		59.8, // Common
+		25, // Rare
+		10, // Epic
+		5, // Legendary
+		0.2, // Mythical
+	];
 
-function generateLoot(raid_level, callback){
-    const rarity_table =  [
-        59.8, // Common
-        25, // Rare
-        10, // Epic
-        5, // Legendary
-        .2 // Mythical
-    ]
+	var raritySeed = Math.random() * 100;
 
-    var raritySeed = Math.random() * 100;
+	var luckBonus = raid_level * 0.05;
+	raritySeed += luckBonus;
 
-    var luckBonus = raid_level * .05;
-    raritySeed += luckBonus;
+	var rarity;
 
-    var rarity;
-    
-    var total = 0;
-    for(let i = 0; i < rarity_table.length; i++){
-        total += rarity_table[i]
-        if(raritySeed < total ||i == rarity_table.length-1){
-            rarity = i;
-            break;
-        }
-    }
+	var total = 0;
+	for (let i = 0; i < rarity_table.length; i++) {
+		total += rarity_table[i];
+		if (raritySeed < total || i == rarity_table.length - 1) {
+			rarity = i;
+			break;
+		}
+	}
 
-    
+	connection.query(
+		"SELECT * FROM items_index WHERE rarity = ?",
+		[rarity],
+		(err, res) => {
+			var pool = [];
+			for (var indexItem of res) {
+				for (let i = 0; i < indexItem.loot; i++) {
+					pool.push(indexItem.id);
+				}
+			}
 
-    connection.query("SELECT * FROM items_index WHERE rarity = ?", [rarity], (err, res) => {
-        var pool = []
-        for(var indexItem of res){
-            for(let i = 0; i < indexItem.loot; i++){
-                pool.push(indexItem.id);
-            }
-        }
-        
-        var item = getIndexedItem(pool[Math.floor(Math.random() * pool.length)])
-        
-        callback(item.id);
-    })
+			var item = getIndexedItem(
+				pool[Math.floor(Math.random() * pool.length)]
+			);
+
+			callback(item.id);
+		}
+	);
 }
 
 function getUserFromId(id, callback) {
@@ -594,10 +671,14 @@ function getUserFromId(id, callback) {
 	});
 }
 
-function getRaid(user_id, callback){
-    connection.query("SELECT * FROM raids WHERE user = ? ORDER BY started DESC", [user_id], (err, res) => {
-        callback(res[0]);
-    })
+function getRaid(user_id, callback) {
+	connection.query(
+		"SELECT * FROM raids WHERE user = ? ORDER BY started DESC",
+		[user_id],
+		(err, res) => {
+			callback(res[0]);
+		}
+	);
 }
 
 function getUser(token, callback) {
