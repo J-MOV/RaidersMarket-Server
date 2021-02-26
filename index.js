@@ -26,6 +26,14 @@ app.listen(website_port, () => {
 	console.log(`Website started on port ${website_port}`);
 });
 
+app.get("/stats", async (req, res) => {
+	var mythical_items = await query(
+		"SELECT items.*, items_index.rarity FROM items INNER JOIN items_index ON items.item = items_index.id WHERE items_index.rarity = 4"
+	);
+
+	res.json({ mythical_items });
+});
+
 app.get("/", (req, res) => {
 	res.end("Our Unity game server is hosted here!");
 });
@@ -33,26 +41,6 @@ app.get("/", (req, res) => {
 connection.connect();
 connection.query("SELECT * FROM items_index", (err, res) => {
 	indexedItems = res;
-
-	/* for(var item of indexedItems){
-        var spawnedItem = {
-            item: item.id,
-            pattern: Math.random(),
-            owner: 897,
-            for_sale: 1,
-            price: 10,
-            equipped: 0
-        }
-        console.log("Spawning " + item.name)
-       for(var i = 0; i < 10; i++){
-
-        connection.query(`INSERT INTO items (item, pattern, owner, creator, created, for_sale, price) VALUES (?, ?, ?, ?, ?, 1, 10)`, [
-            spawnedItem.item, Math.random(), spawnedItem.owner, spawnedItem.owner, new Date()
-        ], (err, res) => {
-            
-        })
-       }
-    } */
 });
 
 var indexedItems;

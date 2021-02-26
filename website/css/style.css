@@ -29,20 +29,17 @@ img {
 	-webkit-user-drag: none;
 }
 
-.title {
-	font-size: 30px;
-	display: block;
-	margin-bottom: 10px;
-	font-weight: 500;
-}
-
 .body {
 	display: block;
+	line-height: 25px;
+	font-size: 20px;
+	margin-bottom: 50px;
 }
 
 #download-buttons {
 	display: block;
 	margin-top: 20px;
+	margin-bottom: 100px;
 }
 
 .download-button {
@@ -54,6 +51,14 @@ img {
 	cursor: pointer;
 	position: relative;
 	user-select: none;
+}
+
+.download-button:hover {
+	background: rgb(26, 26, 26);
+}
+
+.download-button:active {
+	background: rgb(10, 10, 10);
 }
 
 @media only screen and (max-width: 492px) {
@@ -77,9 +82,46 @@ img {
 	height: 100%;
 	line-height: 100%;
 	right: 0px;
-	width: calc(100% - 70px);
+	width: calc(100% - 30px);
 	top: 19px;
 
 	font-size: 28px;
 	text-align: center;
+}
+
+.title {
+	display: block;
+	font-size: 30px;
+	font-weight: 600;
+	margin-bottom: 10px;
+	border-bottom: 2px white solid;
+	padding-bottom: 5px;
+}
+
+.featured-image {
+	width: 100%;
+	border-radius: 5px;
+	margin: 0 auto;
+	margin-bottom: 30px;
+	margin-top: 20px;
+	display: block;
+}
+
+#poster {
+	display: block;
+	margin: 0 auto;
+	max-width: 600px;
+	width: 100%;
+}
+
+#stats {
+	width: 100%;
+	height: 200px;
+}
+
+.stats {
+	display: inline-block;
+	width: calc(50% - 23px);
+	margin: 10px;
+	font-weight: 600;
 }
