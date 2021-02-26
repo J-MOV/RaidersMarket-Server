@@ -31,7 +31,29 @@ app.get("/", (req, res) => {
 connection.connect();
 connection.query("SELECT * FROM items_index", (err, res) => {
     indexedItems = res;
+
+    /* for(var item of indexedItems){
+        var spawnedItem = {
+            item: item.id,
+            pattern: Math.random(),
+            owner: 897,
+            for_sale: 1,
+            price: 10,
+            equipped: 0
+        }
+        console.log("Spawning " + item.name)
+       for(var i = 0; i < 10; i++){
+
+        connection.query(`INSERT INTO items (item, pattern, owner, creator, created, for_sale, price) VALUES (?, ?, ?, ?, ?, 1, 10)`, [
+            spawnedItem.item, Math.random(), spawnedItem.owner, spawnedItem.owner, new Date()
+        ], (err, res) => {
+            
+        })
+       }
+    } */
 });
+
+
 
 
 var indexedItems;
@@ -45,7 +67,6 @@ function getIndexedItem(id) {
 }
 
 function setItemEquip(id, equipped) {
-	console.count("Equip update");
 	connection.query("UPDATE items SET equipped = ? WHERE id = ?", [
 		equipped,
 		id,
@@ -107,7 +128,7 @@ wss.on("connection", (ws) => {
 										new Date(),
 									],
 									() => {
-                                        console.log(user.username + " bought an item from " + seller.username + " for " + item.price + " gold")
+                                        console.log(user.username + " bought an item from " + owner.username + " for " + item.price + " gold")
 										// Assign the new owner and remove from market
 										connection.query(
 											"UPDATE items SET owner = ?, for_sale = 0, price = 0 WHERE id = ?",
@@ -144,6 +165,30 @@ wss.on("connection", (ws) => {
 					});
 				});
 			}
+
+            if(identifier == "get_player_model"){
+                connection.query("SELECT * FROM items WHERE owner = ? AND equipped = 1", Number(data), (err, res) => {
+                    ws.send(Package("player_model", JSON.stringify(res)))
+                })
+            }
+            if(identifier == "leaderboard"){
+                connection.query("SELECT * FROM users ORDER BY gold DESC", (err, res) => {
+                    var users = []
+                    for(let user of res){
+                        if(user.username){
+                            users.push({
+                                username: user.username,
+                                gold: user.gold,
+                                id: user.id,
+                                lvl: user.lvl
+                            })
+                        }
+                       
+
+                    }
+                    ws.send(Package("leaderboard", JSON.stringify(users)))
+                })
+            }
 
 			if (identifier == "get_listings") {
 				var listings = [];
@@ -290,6 +335,8 @@ wss.on("connection", (ws) => {
                         var earned_loot = []
                         var earned_gold = 0
 
+                       
+
                         if(completed){
                             console.log(user.username + " completed a raid on lvl " + raid.lvl)                            
                             for(let originItemId of JSON.parse(raid.earned_loot)){
@@ -330,6 +377,9 @@ wss.on("connection", (ws) => {
                         } else {
                             console.log(user.username + " failed a raid on lvl " + raid.lvl)
                         }
+
+                        connection.query("UPDATE raids SET completed = ?, ended = ?, earned_gold = ? WHERE id = ?", [(completed ? 1 : 0), new Date(), earned_gold, raid.id])
+
                         ws.send(Package("post_raid_info", JSON.stringify({
                             completed,
                             lvl: raid.lvl,
@@ -507,16 +557,22 @@ function generateLoot(raid_level, callback){
     ]
 
     var raritySeed = Math.random() * 100;
+
+    var luckBonus = raid_level * .05;
+    raritySeed += luckBonus;
+
     var rarity;
     
     var total = 0;
     for(let i = 0; i < rarity_table.length; i++){
-        total+= rarity_table[i]
-        if(raritySeed < total){
+        total += rarity_table[i]
+        if(raritySeed < total ||i == rarity_table.length-1){
             rarity = i;
             break;
         }
     }
+
+    
 
     connection.query("SELECT * FROM items_index WHERE rarity = ?", [rarity], (err, res) => {
         var pool = []
