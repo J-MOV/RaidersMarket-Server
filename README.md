@@ -134,7 +134,7 @@ Every raid played is stored in this table. This is both to collect statistics da
 ## Market Transactions
 
 Every time an item is bought on the market, it is entered in this table.
-This allows for the Item history features that shows all the market transactions of that item and market info such as: Last sold for, Lowest sold for. It can also help to prevent cheating. In the future we could graph the prices of items and analyze the price to rarity, price to item stats and price to hidden rarity ([See loot](#item-spawnning))
+This allows for the Item history features that shows all the market transactions of that item and market info such as: Last sold for, Lowest sold for. It can also help to prevent cheating. In the future we could graph the prices of items and analyze the price to rarity, price to item stats and price to hidden rarity ([See loot](#item-spawning))
 
 ```
 +----+--------+-------+------+-------+---------------------+
