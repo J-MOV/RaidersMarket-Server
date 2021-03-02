@@ -90,7 +90,7 @@ When an item is generated (with every raid wave defeated) a rarity is first chos
 |  1 | Royal Shirt       | No Description                | torso   | LionShirt       |      3 |    5 |       0 |  3 |    0 |
 |  2 | Brown tail        | No Description                | hair    | Hair_1          |      0 |   10 |       0 |  2 |    0 |
 |  3 | Metal Armor Torso | No Description                | torso   | Armor_1         |      1 |   10 |       0 | 50 |    0 |
-|  4 | Horn Helemet      | No Description                | head    | HornHelmet      |      1 |   10 |       0 | 35 |    0 |
+|  4 | Horn Helmet       | No Description                | head    | HornHelmet      |      1 |   10 |       0 | 35 |    0 |
 | 12 | Claymore          | A sword you can trust!        | weapon  | Claymore_1      |      2 |   10 |       0 |  0 |   15 |
 | 13 | Face mask         | Keep safe!                    | face    | Facemask        |      0 |    1 |       0 | 10 |    0 |
 | 14 | Brown beard       | No Description                | face    | Beard_1         |      0 |   10 |       0 |  3 |    0 |
