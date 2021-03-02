@@ -27,39 +27,40 @@ app.listen(website_port, () => {
 });
 
 app.get("/stats", async (req, res) => {
-    var users = await query("SELECT * FROM users")
+	var users = await query("SELECT * FROM users");
 
-    var raids = await query("SELECT * FROM raids WHERE ended IS NOT NULL")
+	var raids = await query("SELECT * FROM raids WHERE ended IS NOT NULL");
 
-    var highest_raid = await query("SELECT * FROM users ORDER BY lvl DESC LIMIT 1")
+	var highest_raid = await query(
+		"SELECT * FROM users ORDER BY lvl DESC LIMIT 1"
+	);
 
-    var total_items = await query("SELECT * FROM items")
+	var total_items = await query("SELECT * FROM items");
 
-    var gold = 0;
-    for(var user of users){
-        gold+= user.gold;
-    }
+	var gold = 0;
+	for (var user of users) {
+		gold += user.gold;
+	}
 	var mythical_items = await query(
 		"SELECT items.* FROM items INNER JOIN items_index ON items.item = items_index.id WHERE items_index.rarity = 4"
 	);
 
 	res.json({
-        "Players": users.length ,
-        "Raids cleared": raids.length,
-        "Looted items": total_items.length, 
-        "Highest raid cleared": highest_raid[0].lvl-1,
-        
-        "Looted mythicals": mythical_items.length,
-        "Player gold": gold
-      });
+		Players: users.length,
+		"Raids cleared": raids.length,
+		"Looted items": total_items.length,
+		"Highest raid cleared": highest_raid[0].lvl - 1,
+
+		"Looted mythicals": mythical_items.length,
+		"Player gold": gold,
+	});
 });
 
 app.get("/", (req, res) => {
-	res.sendFile(__dirname + "/website/index.html")
+	res.sendFile(__dirname + "/website/index.html");
 });
 
-app.use(express.static('website'))
-
+app.use(express.static("website"));
 
 connection.connect();
 connection.query("SELECT * FROM items_index", (err, res) => {
@@ -292,8 +293,8 @@ wss.on("connection", (ws) => {
 
 			if (identifier == "check_username_availability") {
 				connection.query(
-					"SELECT * FROM users WHERE username = ?",
-					[data],
+					"SELECT * FROM users WHERE LOWER(username) = ?",
+					[data.toLowerCase()],
 					(err, res) => {
 						ws.send(
 							Package(
@@ -475,8 +476,8 @@ wss.on("connection", (ws) => {
 				getUser(token, (user) => {
 					if (user.username == null) {
 						connection.query(
-							"SELECT * FROM users WHERE username = ?",
-							[data],
+							"SELECT * FROM users WHERE LOWER(username) = ?",
+							[data.toLowerCase()],
 							(err, res) => {
 								if (res.length == 0) {
 									console.log("New user: " + data);
